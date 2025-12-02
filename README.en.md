@@ -104,6 +104,8 @@ lynx-update publish -v 1.0.1                  # Specify version
 lynx-update publish -d "Fixed some issues"   # Add description
 lynx-update publish --mandatory               # Force update
 lynx-update publish --rollout 50              # Gradual rollout 50%
+lynx-update publish --diff                    # Enable differential updates
+lynx-update publish --target-binary-version ">=1.0.0"  # Target specific app versions
 ```
 
 ### Rollback
@@ -121,11 +123,45 @@ lynx-update status                            # View deployment status
 lynx-update status -p android                 # View Android status
 ```
 
+### Release History
+
+```bash
+lynx-update history                           # View release history
+lynx-update history -p android                # View Android history
+lynx-update history -n 20                     # Show last 20 releases
+lynx-update history -v                        # Show descriptions
+```
+
+### Modify Releases
+
+```bash
+lynx-update patch 1.0.1 --disabled true       # Disable a version
+lynx-update patch 1.0.1 --disabled false      # Enable a version
+lynx-update patch 1.0.1 --rollout 50          # Change rollout percentage
+lynx-update patch 1.0.1 --mandatory true      # Set as mandatory
+```
+
+### Promote Releases
+
+```bash
+lynx-update promote                           # Staging → Production
+lynx-update promote -s staging -t production  # Specify source and target
+lynx-update promote --rollout 10              # Rollout 10% after promote
+```
+
 ### Configuration
 
 ```bash
 lynx-update config --show                     # Show current config
 lynx-update config --server <url>             # Change server URL
+```
+
+### Start Server
+
+```bash
+lynx-update server                            # Start hot update server
+lynx-update server -p 8080                    # Specify port
+lynx-update server -d ./data                  # Specify data directory
 ```
 
 ## 🔧 Configuration File
@@ -209,6 +245,12 @@ let version = LynxHotUpdate.shared.getCurrentVersion()
 
 // Clear all updates
 LynxHotUpdate.shared.clearUpdates()
+
+// Confirm update success (prevents auto-rollback)
+LynxHotUpdate.shared.notifyUpdateSuccess()
+
+// Mark update as failed (triggers rollback)
+LynxHotUpdate.shared.notifyUpdateFailed()
 ```
 
 ## 🏗 Architecture
