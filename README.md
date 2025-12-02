@@ -106,6 +106,8 @@ lynx-update publish -v 1.0.1                  # 指定版本号
 lynx-update publish -d "修复了一些问题"         # 添加更新说明
 lynx-update publish --mandatory               # 强制更新
 lynx-update publish --rollout 50              # 灰度发布 50%
+lynx-update publish --diff                    # 启用差分更新（只上传变更）
+lynx-update publish --target-binary-version ">=1.0.0"  # 版本定向
 ```
 
 ### 回滚
@@ -123,11 +125,45 @@ lynx-update status                            # 查看部署状态
 lynx-update status -p android                 # 查看 Android 状态
 ```
 
+### 发布历史
+
+```bash
+lynx-update history                           # 查看发布历史
+lynx-update history -p android                # 查看 Android 历史
+lynx-update history -n 20                     # 显示最近 20 条
+lynx-update history -v                        # 显示详细描述
+```
+
+### 修改发布
+
+```bash
+lynx-update patch 1.0.1 --disabled true       # 禁用某个版本
+lynx-update patch 1.0.1 --disabled false      # 启用某个版本
+lynx-update patch 1.0.1 --rollout 50          # 修改灰度比例
+lynx-update patch 1.0.1 --mandatory true      # 设为强制更新
+```
+
+### 环境推送
+
+```bash
+lynx-update promote                           # Staging → Production
+lynx-update promote -s staging -t production  # 指定源和目标环境
+lynx-update promote --rollout 10              # 推送后灰度 10%
+```
+
 ### 配置管理
 
 ```bash
 lynx-update config --show                     # 显示当前配置
 lynx-update config --server <url>             # 修改服务器地址
+```
+
+### 启动服务器
+
+```bash
+lynx-update server                            # 启动热更新服务器
+lynx-update server -p 8080                    # 指定端口
+lynx-update server -d ./data                  # 指定数据目录
 ```
 
 ## 🔧 配置文件
@@ -184,6 +220,15 @@ val version = LynxHotUpdate.getCurrentVersion()
 
 // 清除所有更新（回退到内置版本）
 LynxHotUpdate.clearUpdates()
+
+// 标记更新成功（防止自动回滚）
+LynxHotUpdate.notifyUpdateSuccess()
+
+// 标记更新失败（触发自动回滚）
+LynxHotUpdate.notifyUpdateFailed()
+
+// 立即重启应用
+LynxHotUpdate.restartApp()
 ```
 
 ### iOS (Swift)

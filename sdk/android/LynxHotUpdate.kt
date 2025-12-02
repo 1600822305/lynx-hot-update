@@ -1,9 +1,11 @@
 package com.lynx.hotupdate
 
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.util.Log
 import kotlinx.coroutines.*
+import kotlinx.coroutines.CancellableContinuation
 import java.io.*
 import java.net.HttpURLConnection
 import java.net.URL
@@ -319,6 +321,141 @@ object LynxHotUpdate {
         File(context.filesDir, "lynx_pending").deleteRecursively()
         prefs.edit().clear().apply()
         Log.d(TAG, "All updates cleared")
+    }
+    
+    /**
+     * 立即重启应用以应用更新
+     */
+    fun restartApp() {
+        val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+        intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+        
+        // 结束当前进程
+        android.os.Process.killProcess(android.os.Process.myPid())
+    }
+    
+    /**
+     * 标记更新安装成功
+     * 调用此方法后，更新将被确认，否则下次启动会自动回滚
+     */
+    fun notifyUpdateSuccess() {
+        val currentVersion = prefs.getString(KEY_CURRENT_VERSION, null) ?: return
+        prefs.edit()
+            .putBoolean("${currentVersion}_confirmed", true)
+            .apply()
+        Log.d(TAG, "Update $currentVersion confirmed successful")
+        
+        // 报告安装成功
+        reportInstallStatus("success", currentVersion)
+    }
+    
+    /**
+     * 标记更新安装失败，触发自动回滚
+     */
+    fun notifyUpdateFailed() {
+        val currentVersion = prefs.getString(KEY_CURRENT_VERSION, null) ?: return
+        Log.e(TAG, "Update $currentVersion marked as failed, rolling back...")
+        
+        // 报告安装失败
+        reportInstallStatus("failure", currentVersion)
+        
+        // 执行回滚
+        rollbackToPreviousVersion()
+    }
+    
+    /**
+     * 检查是否需要自动回滚（上次更新未确认成功）
+     */
+    private fun checkAutoRollback() {
+        val currentVersion = prefs.getString(KEY_CURRENT_VERSION, null) ?: return
+        val isConfirmed = prefs.getBoolean("${currentVersion}_confirmed", false)
+        val previousVersion = prefs.getString("previous_version", null)
+        
+        if (!isConfirmed && previousVersion != null) {
+            Log.w(TAG, "Previous update not confirmed, checking rollback...")
+            
+            // 检查启动次数，如果连续多次未确认则回滚
+            val launchCount = prefs.getInt("${currentVersion}_launches", 0) + 1
+            prefs.edit().putInt("${currentVersion}_launches", launchCount).apply()
+            
+            if (launchCount >= 3) {
+                Log.e(TAG, "Update failed after $launchCount launches, rolling back...")
+                rollbackToPreviousVersion()
+            }
+        }
+    }
+    
+    /**
+     * 回滚到上一版本
+     */
+    private fun rollbackToPreviousVersion() {
+        val previousVersion = prefs.getString("previous_version", null) ?: return
+        val previousBundleDir = File(context.filesDir, "lynx_bundles_backup")
+        val currentBundleDir = File(context.filesDir, "lynx_bundles")
+        
+        if (previousBundleDir.exists()) {
+            currentBundleDir.deleteRecursively()
+            previousBundleDir.renameTo(currentBundleDir)
+            
+            prefs.edit()
+                .putString(KEY_CURRENT_VERSION, previousVersion)
+                .remove("previous_version")
+                .apply()
+            
+            Log.d(TAG, "Rolled back to version $previousVersion")
+        }
+    }
+    
+    /**
+     * 报告安装状态到服务器
+     */
+    private fun reportInstallStatus(status: String, version: String) {
+        scope.launch {
+            try {
+                val url = URL("$serverUrl/api/report-install")
+                val connection = url.openConnection() as HttpURLConnection
+                connection.requestMethod = "POST"
+                connection.setRequestProperty("Content-Type", "application/json")
+                connection.doOutput = true
+                
+                val body = JSONObject().apply {
+                    put("deploymentKey", deploymentKey)
+                    put("platform", "android")
+                    put("version", version)
+                    put("status", status)
+                }.toString()
+                
+                connection.outputStream.use { os ->
+                    os.write(body.toByteArray())
+                }
+                
+                connection.responseCode // 触发请求
+                connection.disconnect()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to report install status", e)
+            }
+        }
+    }
+    
+    /**
+     * 同步检查更新并下载（阻塞式，适合启动时使用）
+     */
+    suspend fun syncUpdate(): Boolean {
+        return suspendCancellableCoroutine { continuation ->
+            checkForUpdate { result ->
+                if (result.updateAvailable && result.mandatory) {
+                    downloadUpdate(result,
+                        onProgress = null,
+                        onComplete = { success, _ ->
+                            continuation.resume(success) {}
+                        }
+                    )
+                } else {
+                    continuation.resume(false) {}
+                }
+            }
+        }
     }
 }
 

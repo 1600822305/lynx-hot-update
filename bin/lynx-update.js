@@ -9,6 +9,10 @@ const publishCommand = require('../src/commands/publish');
 const rollbackCommand = require('../src/commands/rollback');
 const statusCommand = require('../src/commands/status');
 const configCommand = require('../src/commands/config');
+const serverCommand = require('../src/commands/server');
+const promoteCommand = require('../src/commands/promote');
+const patchCommand = require('../src/commands/patch');
+const historyCommand = require('../src/commands/history');
 
 console.log(chalk.hex('#FF6B6B')(`
 ╦  ╦ ╦╔╗╔╔═╗  ╦ ╦╔═╗╔╦╗  ╦ ╦╔═╗╔╦╗╔═╗╔╦╗╔═╗
@@ -58,5 +62,41 @@ program
   .option('--key <key>', 'Set deployment key')
   .option('--show', 'Show current configuration')
   .action(configCommand);
+
+program
+  .command('server')
+  .description('Start the hot update server')
+  .option('-p, --port <port>', 'Server port', '3000')
+  .option('-d, --data <dir>', 'Data directory')
+  .action(serverCommand);
+
+program
+  .command('promote')
+  .description('Promote release from staging to production')
+  .option('-p, --platform <platform>', 'Target platform (android/ios/all)', 'all')
+  .option('-s, --source <env>', 'Source environment', 'staging')
+  .option('-t, --target <env>', 'Target environment', 'production')
+  .option('--rollout <percentage>', 'Rollout percentage for promoted release')
+  .option('-y, --yes', 'Skip confirmation')
+  .action(promoteCommand);
+
+program
+  .command('patch <version>')
+  .description('Modify release metadata')
+  .option('-p, --platform <platform>', 'Target platform (android/ios/all)', 'all')
+  .option('--disabled <bool>', 'Disable/enable release (true/false)')
+  .option('--rollout <percentage>', 'Update rollout percentage')
+  .option('--mandatory <bool>', 'Set mandatory flag (true/false)')
+  .option('-d, --description <desc>', 'Update description')
+  .option('--target-binary-version <range>', 'Update target binary version')
+  .action(patchCommand);
+
+program
+  .command('history')
+  .description('Show release history')
+  .option('-p, --platform <platform>', 'Target platform (android/ios/all)', 'all')
+  .option('-n, --limit <number>', 'Number of releases to show', '10')
+  .option('-v, --verbose', 'Show descriptions')
+  .action(historyCommand);
 
 program.parse();

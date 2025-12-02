@@ -5,6 +5,7 @@ const ora = require('ora');
 const archiver = require('archiver');
 const crypto = require('crypto');
 const axios = require('axios');
+const { createDiffPackage, scanDirectory } = require('../utils/diff');
 
 const CONFIG_FILE = 'lynx-update.json';
 
@@ -44,12 +45,19 @@ async function publishCommand(options) {
     ? config.platforms 
     : [options.platform];
 
+  // 版本定向
+  const targetBinaryVersion = options.targetBinaryVersion || '*';
+
   console.log(chalk.cyan('\nPublishing update...'));
   console.log(chalk.gray(`Version: ${version}`));
   console.log(chalk.gray(`Platforms: ${platforms.join(', ')}`));
   console.log(chalk.gray(`Rollout: ${options.rollout}%`));
+  console.log(chalk.gray(`Target Binary: ${targetBinaryVersion}`));
   if (options.mandatory) {
     console.log(chalk.yellow('⚠ This is a mandatory update'));
+  }
+  if (options.diff) {
+    console.log(chalk.cyan('📦 Differential update enabled'));
   }
 
   for (const platform of platforms) {
@@ -71,6 +79,15 @@ async function publishCommand(options) {
       const stats = await fs.stat(packagePath);
       const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
 
+      // 生成差分包（如果启用且有上一版本）
+      let diffInfo = null;
+      if (options.diff) {
+        diffInfo = await generateDiffPackageIfPossible(config, platform, distDir, version);
+        if (diffInfo) {
+          console.log(chalk.green(`  📦 Diff package created: ${diffInfo.savedPercent}% smaller`));
+        }
+      }
+
       // Upload to server
       const uploadResult = await uploadPackage(config, platform, {
         version,
@@ -79,7 +96,9 @@ async function publishCommand(options) {
         size: stats.size,
         description: options.description || `Update to version ${version}`,
         mandatory: options.mandatory || false,
-        rollout: parseInt(options.rollout) || 100
+        rollout: parseInt(options.rollout) || 100,
+        targetBinaryVersion,
+        diffInfo
       });
 
       spinner.succeed(chalk.green(`Published to ${platform}`));
@@ -149,8 +168,63 @@ async function calculateFileHash(filePath) {
   });
 }
 
+async function generateDiffPackageIfPossible(config, platform, distDir, newVersion) {
+  try {
+    // 查找上一版本
+    const releasesDir = path.join(process.cwd(), '.lynx-releases', platform);
+    const releasesFile = path.join(releasesDir, 'releases.json');
+    
+    if (!await fs.pathExists(releasesFile)) {
+      return null;
+    }
+
+    const releases = await fs.readJson(releasesFile);
+    if (releases.length === 0) {
+      return null;
+    }
+
+    const prevRelease = releases[0];
+    const prevVersion = prevRelease.version;
+
+    // 检查是否有上一版本的解压目录
+    const prevDir = path.join(process.cwd(), '.lynx-releases', platform, `v${prevVersion}`);
+    if (!await fs.pathExists(prevDir)) {
+      // 尝试解压上一版本
+      const prevPackagePath = prevRelease.packageUrl;
+      if (prevPackagePath && await fs.pathExists(prevPackagePath)) {
+        const AdmZip = require('adm-zip');
+        const zip = new AdmZip(prevPackagePath);
+        await fs.ensureDir(prevDir);
+        zip.extractAllTo(prevDir, true);
+      } else {
+        return null;
+      }
+    }
+
+    // 生成差分包
+    const diffOutputPath = path.join(
+      process.cwd(), 
+      '.lynx-releases', 
+      platform, 
+      `diff-${prevVersion}-to-${newVersion}.zip`
+    );
+
+    const diffResult = await createDiffPackage(prevDir, distDir, diffOutputPath);
+    
+    return {
+      fromVersion: prevVersion,
+      toVersion: newVersion,
+      path: diffOutputPath,
+      ...diffResult
+    };
+  } catch (error) {
+    console.log(chalk.yellow(`  Warning: Could not create diff package: ${error.message}`));
+    return null;
+  }
+}
+
 async function uploadPackage(config, platform, updateInfo) {
-  const { version, packagePath, hash, size, description, mandatory, rollout } = updateInfo;
+  const { version, packagePath, hash, size, description, mandatory, rollout, targetBinaryVersion, diffInfo } = updateInfo;
   
   // For self-hosted, save to local releases directory
   if (config.serverType === 'self-hosted') {
@@ -169,8 +243,17 @@ async function uploadPackage(config, platform, updateInfo) {
       description,
       mandatory,
       rollout,
+      targetBinaryVersion: targetBinaryVersion || '*',
       packageUrl: targetPath,
-      createdAt: new Date().toISOString()
+      diffPackage: diffInfo ? diffInfo.path : null,
+      createdAt: new Date().toISOString(),
+      // 统计数据
+      stats: {
+        downloads: 0,
+        installs: 0,
+        failures: 0,
+        active: 0
+      }
     };
     
     const releasesFile = path.join(releasesDir, 'releases.json');

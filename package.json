@@ -1,6 +1,6 @@
 {
   "name": "lynx-hot-update",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "🔥 Hot update solution for Lynx apps - OTA updates without app store review",
   "main": "src/index.js",
   "bin": {
@@ -50,6 +50,7 @@
     "bin/",
     "src/",
     "sdk/",
+    "server/",
     "README.md"
   ]
 }
