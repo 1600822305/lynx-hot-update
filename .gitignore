@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test
+coverage/
+
+# Temp files
+.lynx-update-temp/
+.lynx-releases/

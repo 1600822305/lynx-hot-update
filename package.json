@@ -1,0 +1,55 @@
+{
+  "name": "lynx-hot-update",
+  "version": "1.0.0",
+  "description": "🔥 Hot update solution for Lynx apps - OTA updates without app store review",
+  "main": "src/index.js",
+  "bin": {
+    "lynx-update": "./bin/lynx-update.js"
+  },
+  "scripts": {
+    "test": "node bin/lynx-update.js --help",
+    "dev": "node bin/lynx-update.js"
+  },
+  "keywords": [
+    "lynx",
+    "lynxjs",
+    "hot-update",
+    "ota",
+    "codepush",
+    "live-update",
+    "android",
+    "ios",
+    "bytedance"
+  ],
+  "author": "Lynx Community",
+  "license": "MIT",
+  "homepage": "https://github.com/1600822305/lynx-hot-update#readme",
+  "bugs": {
+    "url": "https://github.com/1600822305/lynx-hot-update/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/1600822305/lynx-hot-update.git"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "chalk": "^4.1.2",
+    "fs-extra": "^11.2.0",
+    "inquirer": "^8.2.6",
+    "ora": "^5.4.1",
+    "axios": "^1.6.0",
+    "semver": "^7.5.4",
+    "archiver": "^6.0.1",
+    "adm-zip": "^0.5.10",
+    "crypto-js": "^4.2.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "sdk/",
+    "README.md"
+  ]
+}
